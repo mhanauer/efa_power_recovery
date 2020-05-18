@@ -61,51 +61,14 @@ Poly does not work with more than eight response options
 ```{r}
 test_dat = sim_one_fifth(ncases = 500)
 test_dat
-fa(test_dat, 1, rotate="varimax", cor = "poly", correct = 0)
+fa(test_dat, 1, rotate="varimax", cor = "poly", correct = FALSE)
 
 ```
-Appendix Rcode 3: Parameter recovery analysis
-```{r}
-set.seed(123)
-n_sample = seq(from = 400, to = 500, by = 20)
-efa_recover= function(){
-n_sample = n_sample
-dat_vss = list()
-dat_out = list()
-fa_vss = list()
-fa_vss_mean = list()
-for(i in 1:length(n_sample)){
-dat_vss[[i]] = sim_decile(ncases=n_sample[[i]], nvariables=10, nfactors=1, meanloading=.7)
-fa_vss[[i]] = fa(dat_vss[[i]], 1, rotate="varimax", cor = "cor")
-fa_vss_mean[[i]] = mean(fa_vss[[i]]$loadings)
-}
-return(fa_vss_mean)
-}
-### grab each of them sum them then divide by respective n's
-reps = 10000
-power_recover = replicate(n = reps, efa_recover(), simplify = FALSE)
-power_recover
-### There are 6 data sets of varying n's in a row and then a replication of that.
-power_recover_unlist = round(unlist(power_recover),3)
-power_recover_matrix = matrix(power_recover_unlist, ncol = length(n_sample), byrow = TRUE)
-colnames(power_recover_matrix) = c(n_sample)
-power_recover_df = data.frame(power_recover_matrix) 
-recover_mean = round(apply(power_recover_df, 2, mean),3)
-recover_mean = data.frame(as.vector(recover_mean))
-colnames(recover_mean) = "recover_mean"
-recover_sd = round(apply(power_recover_df, 2, sd),3)
-recover_sd = data.frame(as.vector(recover_sd))
-colnames(recover_sd) = "recover_sd"
-recover_sd
-recover = data.frame(recover_mean, recover_sd)
-rownames(recover) = n_sample
-recover
-write.csv(recover,"recover.csv")
-```
+
 Appendix Rcode 4: Power analysis for EFA
 ```{r}
 set.seed(123)
-n_sample = seq(from = 100, to = 200, by = 10)
+n_sample = seq(from = 200, to = 300, by = 10)
 
 efa_power= function(){
 
@@ -148,127 +111,3 @@ power_efa_agg[,2:4] =  round(power_efa_agg[,2:4]/reps,3)
 power_efa_agg
 write.csv(power_efa_agg,"power_efa_agg.csv", row.names = FALSE)
 ```
-
-
-
-Appendix Rcode 5: Altered wmwpowd function
-```{r}
-wmwpowd_paired = function (n, m, distn, distm, sides = "two.sided", alpha = 0.05, 
-    nsims = 10000) 
-{
-    dist1 <- distn
-    dist2 <- distm
-    n1 = n
-    n2 = m
-    if (is.numeric(n1) == F | is.numeric(n2) == F) {
-        stop("n1 and n2 must be numeric")
-    }
-    if (is.character(dist1) == F | is.character(dist2) == F | 
-        !(sub("[^A-z]+", "", dist1) %in% c("norm", 
-            "beta", "cauchy", "f", "gamma", 
-            "lnorm", "unif", "weibull", "exp", 
-            "chisq", "t", "doublex")) | !(sub("[^A-z]+", 
-        "", dist2) %in% c("norm", "beta", "cauchy", 
-        "f", "gamma", "lnorm", "unif", 
-        "weibull", "exp", "chisq", "t", 
-        "doublex"))) {
-        stop("distn and distm must be characters in the form of distribution(parmater1) or distribution(paramter1, parameter2).\n         See documentation for details.")
-    }
-    if (is.numeric(alpha) == F) {
-        stop("alpha must be numeric")
-    }
-    if (is.numeric(nsims) == F) {
-        stop("nsims must be numeric")
-    }
-    if (!(sides %in% c("less", "greater", "two.sided"))) {
-        stop("sides must be character value of less, greater, or two.sided")
-    }
-    if (sides == "two.sided") {
-        test_sides <- "Two-sided"
-    }
-    if (sides %in% c("less", "greater")) {
-        test_sides <- "One-sided"
-    }
-    dist1_func_char <- paste("r", sub("\\(.*", "", 
-        dist1), "(", n1, ",", sub(".*\\(", 
-        "", dist1), sep = "")
-    dist2_func_char <- paste("r", sub("\\(.*", "", 
-        dist2), "(", n2, ",", sub(".*\\(", 
-        "", dist2), sep = "")
-    power_sim_func <- function() {
-        wilcox.test(eval(parse(text = dist1_func_char)), eval(parse(text = dist2_func_char)), 
-            paired = T, correct = F, alternative = sides, exact = T)$p.value
-    }
-    pval_vect <- replicate(nsims, power_sim_func())
-    empirical_power <- round(sum(pval_vect < alpha)/length(pval_vect), 
-        3)
-    dist1_func_ppp <- paste("r", sub("\\(.*", "", 
-        dist1), "(", 1e+07, ",", sub(".*\\(", 
-        "", dist1), sep = "")
-    dist2_func_ppp <- paste("r", sub("\\(.*", "", 
-        dist2), "(", 1e+07, ",", sub(".*\\(", 
-        "", dist2), sep = "")
-    p <- round(sum(eval(parse(text = dist1_func_ppp)) < eval(parse(text = dist2_func_ppp)))/1e+07, 
-        3)
-    wmw_odds <- round(p/(1 - p), 3)
-    cat("Supplied distribution 1: ", dist1, "; n = ", 
-        n1, "\n", "Supplied distribution 2: ", dist2, 
-        "; m = ", n2, "\n\n", "p: ", p, "\n", 
-        "WMW odds: ", wmw_odds, "\n", "Number of simulated datasets: ", 
-        nsims, "\n", test_sides, " WMW test (alpha = ", 
-        alpha, ")\n\n", "Empirical power: ", empirical_power, 
-        sep = "")
-    output_list <- list(empirical_power = empirical_power, alpha = alpha, 
-        test_sides = test_sides, p = p, wmw_odds = wmw_odds, 
-        distn = dist1, distm = dist2, n = n1, m = n2)
-}
-```
-
-Appendix Rcode 6: T-test and Wilcoxon rank sum test power analysis for study three
-```{r}
-## Knowledge
-pwr.t.test(n = 8, d = 1, type = "paired", alternative = "greater")
-pwr.t.test(n = 10, d = .9, type = "paired", alternative = "greater")
-pwr.t.test(n = 11, d = .8, type = "paired", alternative = "greater")
-pwr.t.test(n = 14, d = .7, type = "paired", alternative = "greater")
-
-### Knowledge not normal
-#1 effect size
-library(wmwpow)
-(8-4)/4
-wmwpowd_paired(n = 15, m = 15, distn = "norm(8,4)", distm = "norm(4,4)", sides = "greater",
-alpha = 0.05, nsims=10000)
-
-
-(8-4.4)/4
-wmwpowd_paired(n = 18, m = 18, distn = "norm(8,4)", distm = "norm(4.4,4)", sides = "greater",
-alpha = 0.05, nsims=10000)
-
-(8-4.8)/4
-wmwpowd_paired(n = 22, m = 22, distn = "norm(8,4)", distm = "norm(4.8,4)", sides = "greater",
-alpha = 0.05, nsims=10000)
-
-(8-5.2)/4
-wmwpowd_paired(n = 28, m = 28, distn = "norm(8,4)", distm = "norm(5.2,4)", sides = "greater",
-alpha = 0.05, nsims=10000)
-
-
-```
-
-
- 
-
-#########################
-Extra for dissertation
-#########################
-
-Demonstration of item analysis
-```{r}
-library(sjPlot)
-dat_decile =  sim_decile(ncases = 110)
-head(dat_decile)
-dat_decile = data.frame(dat_decile)
-tab_itemscale(dat_decile)
-```
-
-
